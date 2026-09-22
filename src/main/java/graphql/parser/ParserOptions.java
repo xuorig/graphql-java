@@ -5,6 +5,7 @@ import graphql.PublicApi;
 import java.util.function.Consumer;
 
 import static graphql.Assert.assertNotNull;
+import static graphql.Assert.assertTrue;
 
 /**
  * Options that control how the {@link Parser} behaves.
@@ -63,11 +64,26 @@ public class ParserOptions {
      */
     public static final int MAX_RULE_DEPTH = 500;
 
+    /**
+     * This controls the size of the buffer used when the parser reads from a {@link java.io.Reader}, both for the
+     * {@link java.io.LineNumberReader} that wraps the caller's reader (see {@link MultiSourceReader.Builder#reader(java.io.Reader, String)})
+     * and for the chunk size used to decode the underlying ANTLR character stream.
+     * <p>
+     * A larger buffer means fewer reads from the underlying {@link java.io.Reader} at the cost of more memory held
+     * during parsing. To prevent this for most users, graphql-java sets this value to 8192 characters, matching the
+     * JDK's own default {@link java.io.BufferedReader} size.
+     * <p>
+     * If you want to allow more, then {@link #setDefaultParserOptions(ParserOptions)} allows you to change this
+     * JVM wide.
+     */
+    public static final int DEFAULT_READER_BUFFER_SIZE = 8192;
+
     private static ParserOptions defaultJvmParserOptions = newParserOptions()
             .captureIgnoredChars(false)
             .captureSourceLocation(true)
             .captureLineComments(true)
             .readerTrackData(true)
+            .readerBufferSize(DEFAULT_READER_BUFFER_SIZE)
             .maxCharacters(MAX_QUERY_CHARACTERS)
             .maxTokens(MAX_QUERY_TOKENS) // to prevent a billion laughs style attacks, we set a default for graphql-java
             .maxWhitespaceTokens(MAX_WHITESPACE_TOKENS)
@@ -81,6 +97,7 @@ public class ParserOptions {
             .captureSourceLocation(true)
             .captureLineComments(false) // #comments are not useful in query parsing
             .readerTrackData(true)
+            .readerBufferSize(DEFAULT_READER_BUFFER_SIZE)
             .maxCharacters(MAX_QUERY_CHARACTERS)
             .maxTokens(MAX_QUERY_TOKENS) // to prevent a billion laughs style attacks, we set a default for graphql-java
             .maxWhitespaceTokens(MAX_WHITESPACE_TOKENS)
@@ -94,6 +111,7 @@ public class ParserOptions {
             .captureSourceLocation(true)
             .captureLineComments(true) // #comments are useful in SDL parsing
             .readerTrackData(true)
+            .readerBufferSize(DEFAULT_READER_BUFFER_SIZE)
             .maxCharacters(Integer.MAX_VALUE)
             .maxTokens(Integer.MAX_VALUE) // we are less worried about a billion laughs with SDL parsing since the call path is not facing attackers
             .maxWhitespaceTokens(Integer.MAX_VALUE)
@@ -201,6 +219,7 @@ public class ParserOptions {
     private final boolean captureSourceLocation;
     private final boolean captureLineComments;
     private final boolean readerTrackData;
+    private final int readerBufferSize;
     private final int maxCharacters;
     private final int maxTokens;
     private final int maxWhitespaceTokens;
@@ -214,6 +233,7 @@ public class ParserOptions {
         this.captureSourceLocation = builder.captureSourceLocation;
         this.captureLineComments = builder.captureLineComments;
         this.readerTrackData = builder.readerTrackData;
+        this.readerBufferSize = builder.readerBufferSize;
         this.maxCharacters = builder.maxCharacters;
         this.maxTokens = builder.maxTokens;
         this.maxWhitespaceTokens = builder.maxWhitespaceTokens;
@@ -267,6 +287,25 @@ public class ParserOptions {
      */
     public boolean isReaderTrackData() {
         return readerTrackData;
+    }
+
+    /**
+     * This controls the size of the buffer used when the parser reads from a {@link java.io.Reader}. A larger
+     * buffer means fewer reads from the underlying {@link java.io.Reader} at the cost of more memory held during
+     * parsing.
+     * <p>
+     * This only affects parsing that goes through a {@link java.io.Reader}, for example {@link Parser#parseDocument(java.io.Reader)}
+     * or {@link graphql.schema.idl.SchemaParser#parse(java.io.Reader)}. It has no effect when parsing a {@link String} directly.
+     * <p>
+     * If you pass in your own {@link java.io.LineNumberReader} (directly, or wrapped inside a {@link MultiSourceReader}
+     * you built yourself), it is used as-is and this option only affects the internal ANTLR read chunk size - size
+     * your {@link java.io.LineNumberReader} yourself, e.g. {@code new LineNumberReader(reader, mySize)}, to also
+     * control how much is buffered before it reaches the parser.
+     *
+     * @return the buffer size (in characters) used when reading from a {@link java.io.Reader}.
+     */
+    public int getReaderBufferSize() {
+        return readerBufferSize;
     }
 
     /**
@@ -355,6 +394,7 @@ public class ParserOptions {
         private boolean captureSourceLocation = true;
         private boolean captureLineComments = true;
         private boolean readerTrackData = true;
+        private int readerBufferSize = DEFAULT_READER_BUFFER_SIZE;
         private ParsingListener parsingListener = ParsingListener.NOOP;
         private int maxCharacters = MAX_QUERY_CHARACTERS;
         private int maxTokens = MAX_QUERY_TOKENS;
@@ -370,6 +410,8 @@ public class ParserOptions {
             this.captureIgnoredChars = parserOptions.captureIgnoredChars;
             this.captureSourceLocation = parserOptions.captureSourceLocation;
             this.captureLineComments = parserOptions.captureLineComments;
+            this.readerTrackData = parserOptions.readerTrackData;
+            this.readerBufferSize = parserOptions.readerBufferSize;
             this.maxCharacters = parserOptions.maxCharacters;
             this.maxTokens = parserOptions.maxTokens;
             this.maxWhitespaceTokens = parserOptions.maxWhitespaceTokens;
@@ -396,6 +438,19 @@ public class ParserOptions {
 
         public Builder readerTrackData(boolean readerTrackData) {
             this.readerTrackData = readerTrackData;
+            return this;
+        }
+
+        /**
+         * Sets the buffer size (in characters) used when the parser reads from a {@link java.io.Reader}.
+         *
+         * @param readerBufferSize the buffer size in characters, which must be at least 2
+         *
+         * @return this builder
+         */
+        public Builder readerBufferSize(int readerBufferSize) {
+            assertTrue(readerBufferSize >= 2, () -> "readerBufferSize must be at least 2");
+            this.readerBufferSize = readerBufferSize;
             return this;
         }
 

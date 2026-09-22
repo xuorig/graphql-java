@@ -157,6 +157,31 @@ B5*******X
         multiSource.getOverallLineNumber() == 0
     }
 
+    def "honours a caller-supplied LineNumberReader instead of re-wrapping it"() {
+        given:
+        def lineNumberReader = new LineNumberReader(new StringReader("Hello\nWorld"), 4)
+
+        when:
+        multiSource = MultiSourceReader.newMultiSourceReader()
+                .reader(lineNumberReader, "custom")
+                .build()
+        def lines = multiSource.readLines()
+
+        then:
+        // reads correctly regardless of the caller-supplied buffer size
+        lines == ["Hello", "World"]
+        multiSource.getSourceName() == "custom"
+
+        when:
+        // if MultiSourceReader had re-wrapped our reader instead of using it as-is, closing multiSource
+        // would only close that fresh wrapper, leaving our own lineNumberReader open
+        multiSource.close()
+        lineNumberReader.read()
+
+        then:
+        thrown(IOException)
+    }
+
     def "can handle null source name"() {
         def sr = new StringReader("Hello\nWorld")
         when:

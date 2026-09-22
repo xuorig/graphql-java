@@ -277,9 +277,22 @@ public class MultiSourceReader extends Reader {
         private Builder() {
         }
 
+        /**
+         * Adds a {@link Reader} as a source.
+         * <p>
+         * If {@code reader} is already a {@link LineNumberReader}, it is used as-is, so any buffering you have
+         * already configured on it (for example via {@code new LineNumberReader(reader, bufferSize)}) is honoured.
+         * Otherwise, it is wrapped in a {@link LineNumberReader} with the JDK's default buffer size.
+         *
+         * @param reader     the reader to add as a source
+         * @param sourceName the name of the source, which can be null
+         *
+         * @return this builder
+         */
         public Builder reader(Reader reader, String sourceName) {
+            Assert.assertNotNull(reader);
             SourcePart sourcePart = new SourcePart();
-            sourcePart.lineReader = new LineNumberReader(Assert.assertNotNull(reader));
+            sourcePart.lineReader = reader instanceof LineNumberReader ? (LineNumberReader) reader : new LineNumberReader(reader);
             sourcePart.sourceName = sourceName;
             sourcePart.closed = false;
             sourceParts.add(sourcePart);

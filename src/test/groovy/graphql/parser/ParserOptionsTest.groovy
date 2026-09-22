@@ -1,5 +1,6 @@
 package graphql.parser
 
+import graphql.AssertException
 import spock.lang.Specification
 
 class ParserOptionsTest extends Specification {
@@ -31,6 +32,7 @@ class ParserOptionsTest extends Specification {
         defaultOptions.isCaptureLineComments()
         !defaultOptions.isCaptureIgnoredChars()
         defaultOptions.isReaderTrackData()
+        defaultOptions.getReaderBufferSize() == 8192
         !defaultOptions.isRedactTokenParserErrorMessages()
 
         defaultOperationOptions.getMaxTokens() == 15_000
@@ -40,6 +42,7 @@ class ParserOptionsTest extends Specification {
         !defaultOperationOptions.isCaptureLineComments()
         !defaultOperationOptions.isCaptureIgnoredChars()
         defaultOperationOptions.isReaderTrackData()
+        defaultOperationOptions.getReaderBufferSize() == 8192
         !defaultOperationOptions.isRedactTokenParserErrorMessages()
 
         defaultSdlOptions.getMaxCharacters() == Integer.MAX_VALUE
@@ -50,6 +53,7 @@ class ParserOptionsTest extends Specification {
         defaultSdlOptions.isCaptureLineComments()
         !defaultSdlOptions.isCaptureIgnoredChars()
         defaultSdlOptions.isReaderTrackData()
+        defaultSdlOptions.getReaderBufferSize() == 8192
         !defaultSdlOptions.isRedactTokenParserErrorMessages()
     }
 
@@ -114,5 +118,33 @@ class ParserOptionsTest extends Specification {
         currentDefaultSdlOptions.isCaptureIgnoredChars()
         currentDefaultSdlOptions.isReaderTrackData()
         !currentDefaultSdlOptions.isRedactTokenParserErrorMessages()
+    }
+
+    def "transform() round trips readerTrackData and readerBufferSize without them being re-set"() {
+        given:
+        def options = ParserOptions.newParserOptions()
+                .readerTrackData(false)
+                .readerBufferSize(1024)
+                .build()
+
+        when:
+        // transform() only touches captureIgnoredChars - readerTrackData and readerBufferSize
+        // must survive via the Builder(ParserOptions) copy constructor, not because we set them again here
+        def transformed = options.transform({ it.captureIgnoredChars(true) })
+
+        then:
+        !transformed.isReaderTrackData()
+        transformed.getReaderBufferSize() == 1024
+    }
+
+    def "readerBufferSize rejects sizes below 2"() {
+        when:
+        ParserOptions.newParserOptions().readerBufferSize(size)
+
+        then:
+        thrown(AssertException)
+
+        where:
+        size << [0, 1, -1, Integer.MIN_VALUE]
     }
 }

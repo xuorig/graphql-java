@@ -31,6 +31,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.jspecify.annotations.NonNull;
 
 import java.io.IOException;
+import java.io.LineNumberReader;
 import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
@@ -242,7 +243,7 @@ public class Parser {
 
         SafeTokenReader safeTokenReader = setupSafeTokenReader(environment, parserOptions, multiSourceReader);
 
-        CodePointCharStream charStream = setupCharStream(safeTokenReader);
+        CodePointCharStream charStream = setupCharStream(safeTokenReader, parserOptions);
 
         GraphqlLexer lexer = setupGraphqlLexer(environment, multiSourceReader, charStream);
 
@@ -294,9 +295,14 @@ public class Parser {
         if (reader instanceof MultiSourceReader) {
             multiSourceReader = (MultiSourceReader) reader;
         } else {
+            // if the caller already handed us a LineNumberReader, respect however they sized it - otherwise
+            // size it ourselves so ParserOptions.getReaderBufferSize() takes effect
+            Reader sizedReader = reader instanceof LineNumberReader
+                    ? reader
+                    : new LineNumberReader(reader, parserOptions.getReaderBufferSize());
             multiSourceReader = MultiSourceReader.newMultiSourceReader()
-                    .reader(reader, null)
                     .trackData(parserOptions.isReaderTrackData())
+                    .reader(sizedReader, null)
                     .build();
         }
         return multiSourceReader;
@@ -311,13 +317,10 @@ public class Parser {
         return new SafeTokenReader(multiSourceReader, maxCharacters, onTooManyCharacters);
     }
 
-    // matches the chunk size ANTLR's CharStreams.fromReader() uses internally
-    private static final int CHAR_STREAM_BUFFER_SIZE = 4096;
-
     @NonNull
-    private static CodePointCharStream setupCharStream(SafeTokenReader safeTokenReader) {
+    private static CodePointCharStream setupCharStream(SafeTokenReader safeTokenReader, ParserOptions parserOptions) {
         try {
-            return readCodePointCharStream(safeTokenReader, CHAR_STREAM_BUFFER_SIZE);
+            return readCodePointCharStream(safeTokenReader, parserOptions.getReaderBufferSize());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
