@@ -18,7 +18,7 @@ import spock.lang.Unroll
  * ANTLR mis-decodes it into two separate code points instead of one - see
  * <a href="https://github.com/antlr/antlr4/pull/4943">antlr/antlr4#4943</a>.
  * <p>
- * Parser.setupCharStream() avoids this by holding back a trailing unpaired high surrogate so it is carried
+ * ParserBuffer.read(), which the Parser reads every document with, avoids this by holding back a trailing unpaired high surrogate so it is carried
  * into the next chunk. This test proves it by placing an astral character at every offset around the chunk
  * boundary.
  */
