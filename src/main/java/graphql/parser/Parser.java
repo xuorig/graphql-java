@@ -244,7 +244,7 @@ public class Parser {
 
         CodePointCharStream charStream = setupCharStream(safeTokenReader);
 
-        GraphqlLexer lexer = setupGraphqlLexer(environment, multiSourceReader, charStream);
+        GraphqlLexer lexer = setupGraphqlLexer(environment, parserOptions, multiSourceReader, charStream);
 
         // this lexer wrapper allows us to stop lexing when too many tokens are in place.  This prevents DOS attacks.
         SafeTokenSource safeTokenSource = getSafeTokenSource(environment, parserOptions, multiSourceReader, lexer);
@@ -359,8 +359,8 @@ public class Parser {
     }
 
     @NonNull
-    private static GraphqlLexer setupGraphqlLexer(ParserEnvironment environment, MultiSourceReader multiSourceReader, CodePointCharStream charStream) {
-        GraphqlLexer lexer = new GraphqlLexer(charStream);
+    private GraphqlLexer setupGraphqlLexer(ParserEnvironment environment, ParserOptions parserOptions, MultiSourceReader multiSourceReader, CodePointCharStream charStream) {
+        GraphqlLexer lexer = newGraphqlLexer(environment, parserOptions, multiSourceReader, charStream);
         lexer.removeErrorListeners();
         lexer.addErrorListener(new BaseErrorListener() {
             @Override
@@ -383,17 +383,19 @@ public class Parser {
         return lexer;
     }
 
+    private GraphqlLexer newGraphqlLexer(ParserEnvironment environment, ParserOptions parserOptions, MultiSourceReader multiSourceReader, CodePointCharStream charStream) {
+        if (isWhitespaceTokensRequired(parserOptions)) {
+            return new GraphqlLexer(charStream);
+        }
+        return new WhitespaceSkippingLexer(charStream, parserOptions.getMaxWhitespaceTokens(), onTooManyTokens(environment, multiSourceReader));
+    }
+
     @NonNull
     private SafeTokenSource getSafeTokenSource(ParserEnvironment environment, ParserOptions parserOptions, MultiSourceReader multiSourceReader, GraphqlLexer lexer) {
         int maxTokens = parserOptions.getMaxTokens();
         int maxWhitespaceTokens = parserOptions.getMaxWhitespaceTokens();
         int maxNumericLiteralCharacters = parserOptions.getMaxNumericLiteralCharacters();
-        BiConsumer<Integer, Token> onTooManyTokens = (maxTokenCount, token) -> throwIfTokenProblems(
-                environment,
-                token,
-                maxTokenCount,
-                multiSourceReader,
-                ParseCancelledException.class);
+        BiConsumer<Integer, Token> onTooManyTokens = onTooManyTokens(environment, multiSourceReader);
         BiConsumer<Integer, Token> onTooManyNumericLiteralCharacters = (maxCharacters, token) -> {
             SourceLocation sourceLocation = AntlrHelper.createSourceLocation(multiSourceReader, token);
             throw new ParseCancelledTooManyNumericLiteralCharactersException(environment.getI18N(), sourceLocation, maxCharacters);
@@ -406,6 +408,15 @@ public class Parser {
                 onTooManyTokens,
                 onTooManyNumericLiteralCharacters
         );
+    }
+
+    private BiConsumer<Integer, Token> onTooManyTokens(ParserEnvironment environment, MultiSourceReader multiSourceReader) {
+        return (maxTokenCount, token) -> throwIfTokenProblems(
+                environment,
+                token,
+                maxTokenCount,
+                multiSourceReader,
+                ParseCancelledException.class);
     }
 
     private void setupParserListener(ParserEnvironment environment, MultiSourceReader multiSourceReader, GraphqlParser parser, GraphqlAntlrToLanguage toLanguage) {
@@ -489,6 +500,23 @@ public class Parser {
             throw new ParseCancelledTooDeepException(environment.getI18N(), sourceLocation, offendingToken, maxLimit, tokenType);
         }
         throw new ParseCancelledException(environment.getI18N(), sourceLocation, offendingToken, maxLimit, tokenType);
+    }
+
+    /**
+     * Decides whether whitespace tokens (spaces, tabs, commas and line terminators) are put in the token stream
+     * on the {@link #CHANNEL_WHITESPACE} channel.  When this returns false the lexer drops them, which makes parsing
+     * faster.  Either way they count towards {@link ParserOptions#getMaxWhitespaceTokens()}.
+     * <p>
+     * By default they are only kept when {@link ParserOptions#isCaptureIgnoredChars()} is on, since that is the only
+     * time the standard ANTLR to AST code reads them.  Override this to return true if your
+     * {@link #getAntlrToLanguage(CommonTokenStream, MultiSourceReader, ParserEnvironment)} reads whitespace tokens.
+     *
+     * @param parserOptions the parser options in effect for this parse
+     *
+     * @return true if whitespace tokens should be put in the token stream on the {@link #CHANNEL_WHITESPACE} channel
+     */
+    protected boolean isWhitespaceTokensRequired(ParserOptions parserOptions) {
+        return parserOptions.isCaptureIgnoredChars();
     }
 
     /**

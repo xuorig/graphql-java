@@ -20,6 +20,12 @@ public class NodeToRuleCapturingParser extends Parser {
         parserContext = new ParserContext();
     }
 
+    // CommentParser reads the whitespace before a comment to tell trailing comments from leading ones
+    @Override
+    protected boolean isWhitespaceTokensRequired(ParserOptions parserOptions) {
+        return true;
+    }
+
     @Override
     protected GraphqlAntlrToLanguage getAntlrToLanguage(CommonTokenStream tokens, MultiSourceReader multiSourceReader, ParserEnvironment environment) {
         parserContext.tokens = tokens;
