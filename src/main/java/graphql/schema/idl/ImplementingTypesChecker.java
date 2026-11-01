@@ -2,6 +2,7 @@ package graphql.schema.idl;
 
 import graphql.GraphQLError;
 import graphql.Internal;
+import graphql.language.AstComparator;
 import graphql.language.AstPrinter;
 import graphql.language.FieldDefinition;
 import graphql.language.ImplementingTypeDefinition;
@@ -185,7 +186,7 @@ class ImplementingTypesChecker {
             InputValueDefinition objectArg = objectArgs.get(interfaceEntries.getKey());
             if (objectArg == null) {
                 errors.add(new MissingInterfaceFieldArgumentsError(typeOfType, objectTypeDef, interfaceTypeDef, objectFieldDef));
-            } else if (!AstPrinter.printAstCompact(interfaceArg.getType()).equals(AstPrinter.printAstCompact(objectArg.getType()))) {
+            } else if (!AstComparator.isEqual(interfaceArg.getType(), objectArg.getType())) {
                 String interfaceArgStr = AstPrinter.printAstCompact(interfaceArg.transform(builder -> builder.directives(emptyList())));
                 String objectArgStr = AstPrinter.printAstCompact(objectArg.transform(builder -> builder.directives(emptyList())));
                 errors.add(new InterfaceFieldArgumentRedefinitionError(typeOfType, objectTypeDef, interfaceTypeDef, objectFieldDef, objectArgStr, interfaceArgStr));
