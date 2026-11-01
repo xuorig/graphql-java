@@ -844,10 +844,8 @@ public class TypeDefinitionRegistry implements Serializable {
     public boolean isSubTypeOf(Type maybeSubType, Type superType) {
         TypeInfo maybeSubTypeInfo = TypeInfo.typeInfo(maybeSubType);
         TypeInfo superTypeInfo = TypeInfo.typeInfo(superType);
-        // Equivalent type is a valid subtype. Only compare once fully unwrapped, since
-        // TypeInfo.equals ignores wrappers below the outermost one (e.g. [String] vs [String!])
-        if (maybeSubTypeInfo.isPlain() && superTypeInfo.isPlain()
-                && maybeSubTypeInfo.getName().equals(superTypeInfo.getName())) {
+        // Equivalent type is a valid subtype
+        if (maybeSubTypeInfo.equals(superTypeInfo)) {
             return true;
         }
 
